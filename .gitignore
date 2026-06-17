@@ -1,0 +1,28 @@
+# Secrets
+.env
+
+# Python
+.venv/
+__pycache__/
+*.py[cod]
+*.egg-info/
+dist/
+build/
+.pytest_cache/
+.mypy_cache/
+.ruff_cache/
+
+# IDE / local
+.idea/
+.vscode/
+terminals/
+mcps/
+
+# OS
+Thumbs.db
+Desktop.ini
+.DS_Store
+
+# Local artifacts
+_app_recovered.js
+scripts/test_article_output.md
