@@ -1,279 +1,150 @@
 # Joeku
 
-Joeku is a powerful academic writing agent that helps researchers and students generate high-quality, citation-rich papers with ease.
+Joeku is an academic writing tool for generating long-form papers with proper citations. It works with any model that follows the OpenAI chat completions API, including DeepSeek, OpenAI, Ollama, and other local or self-hosted backends.
 
-Built on top of any OpenAI-compatible LLM (DeepSeek, OpenAI, Ollama, local models, etc.), Joeku combines intelligent literature search, citation verification, paper structure analysis, and an advanced long-form generation engine that can produce complete 3,000–30,000 word academic drafts with real references.
+The tool handles literature search across several public sources, citation checking, document structure analysis, and step-by-step generation of papers between 3,000 and 30,000 words. It also includes a web interface for uploading documents, managing a personal reference library per project, and reviewing suggestions for improving citations and arguments.
 
-The application features a modern, desktop-like web interface with drag-and-drop document support, a personal per-project knowledge library, floating citation improvement suggestions, and professional DOCX/PDF export. It can run completely locally for maximum privacy or be easily deployed to the cloud so others can access it through a web browser.
+Everything runs on your machine by default. API keys are sent directly from the browser when you use the web interface, and your documents and generated work stay in a folder you control. The same server can be deployed if you want others to access it over the web.
 
-> **Design Philosophy**: Local-first by default. Your API keys and data never leave your control unless you explicitly deploy it yourself.
+## Features
 
-## 功能
+- Search academic sources using OpenAlex, Semantic Scholar, arXiv, and Crossref
+- Verify citations by DOI, arXiv ID, or title
+- Analyze the structure of existing papers or drafts
+- Generate complete papers section by section, with citations pulled from real sources
+- Review citations in an uploaded document and receive targeted improvement notes
+- Maintain a project library of PDFs, documents, and web pages for reuse
+- Export finished work to DOCX or PDF with configurable formatting
+- Run locally or deploy the web server
 
-- 学术检索：聚合 OpenAlex、Semantic Scholar、Crossref、arXiv。
-- 引用查证：支持 DOI、arXiv ID、论文标题查证，并返回匹配置信度。
-- 拖拽读取文档：本地 Web UI 支持 PDF、DOCX、TXT、Markdown。
-- 论文结构分析：读取文档文本后分析研究问题、论点、章节结构、证据缺口与修改建议。
-- 独立长篇论文生成：根据主题要求生成 3k-30k words 完整学术论文草稿，可通过 --citations 指定引用数量要求（默认 15 篇参考文献）。
-- 文档引用审查与改进建议（Web）：对上传文档提取所有引用进行准确性批量查证，结合学术搜索（OpenAlex/Semantic Scholar 等，覆盖类似 Google Scholar 范围）与 LLM 给出针对性学术改进建议；结果以浮窗注释（popover）形式在文档视图中逐条悬停显示，同时提供全文全局改进建议。
-- 模型接入：支持任何兼容 OpenAI `chat/completions` 协议的模型服务（云端或本地）。
+## Requirements
 
-## Quick Start (for others after git clone)
+- Python 3.10 or newer
+- An API key for an OpenAI-compatible service (or a local model server)
+- uv is recommended for installation, but pip and venv also work
 
-### Prerequisites
-- Python 3.10+
-- An OpenAI-compatible API Key (DeepSeek recommended for cost/performance; also supports OpenAI, local Ollama, etc.)
-- (Recommended) Install [uv](https://docs.astral.sh/uv/) — the fastest Python environment manager
+## Installation
 
-### Method 1: Using uv (recommended, cross-platform)
+Clone the repository and set up the environment:
 
 ```bash
-git clone <your-repo-url>
+git clone https://github.com/your-username/academic-agent.git
 cd academic-agent
 
 uv sync
-
-# Launch the desktop app directly (native window)
-uv run academic-agent
 ```
 
-### Easiest for Windows users
+Or using the standard tools:
 
-After cloning, simply **double-click** `Joeku.bat` in the repo root:
-
-- First run automatically creates the virtual environment and installs dependencies
-- Afterwards it opens a native window directly (no localhost browser)
-- It will also create a desktop shortcut automatically
-
-This gives a "clone → double-click and use" experience.
-
-### Method 2: Traditional venv + pip
-
-**Windows (PowerShell)**
-```powershell
-git clone <your-repo-url>
-cd academic-agent
-
-python -m venv .venv
-.\.venv\Scripts\Activate.ps1
-pip install -e .
-
-# Optional: copy example config
-Copy-Item .env.example .env
-```
-
-**macOS / Linux**
 ```bash
-git clone <your-repo-url>
-cd academic-agent
-
 python -m venv .venv
-source .venv/bin/activate
+source .venv/bin/activate   # Windows: .venv\Scripts\activate
 pip install -e .
+```
 
-# Optional
+Copy the example environment file if you prefer to configure defaults there:
+
+```bash
 cp .env.example .env
 ```
 
-Launch (recommended desktop mode):
+## Running the Application
+
+The recommended way to use Joeku is through the desktop interface:
+
 ```bash
 academic-agent desktop
 ```
 
-This opens a native application window (no more "terminal + manually open localhost").
+This opens a native window. On Windows you can also double-click `Joeku.bat` after the first setup.
 
-If you want to use your own browser (advanced):
+If you prefer to use your browser:
+
 ```bash
 academic-agent web
 ```
 
-### Convenient Windows launcher (optional)
-The repo includes `Joeku.bat`. Double-click it to start automatically (after setting up the venv as above).
+Then open http://127.0.0.1:8000.
 
----
+When the interface loads, enter your model details in the login form:
 
-## Configure Your Model (Most Important Step)
+- Base URL (for example `https://api.deepseek.com/v1` or `http://localhost:11434/v1`)
+- API key
+- Model name
 
-After cloning, you do **not** have to edit `.env`. The Web UI shows a login form on first start:
+The key is only stored in your browser for that session.
 
-- **Base URL**: For cloud, use `https://api.deepseek.com/v1`. For local Ollama use `http://localhost:11434/v1`
-- **API Key**: Enter your DeepSeek / OpenAI key. For local models you can usually use `ollama` or any non-empty string
-- **Model**: `deepseek-chat`, `deepseek-v4-flash`, `gpt-4o-mini`, or your local model name (e.g. `qwen2.5:14b`)
+## Using the Web Interface
 
-Click Connect and you're ready. Keys only live in your browser and are never uploaded.
+- Drag documents into the interface to extract text
+- Use the chat area for questions, planning, or revisions
+- Switch to Generate mode to produce a full paper with a chosen word count and citation target
+- The library sidebar lets you attach reference material to a project
+- Citation verification and structure analysis tools are available from the document view
 
-**Academic Search Notes (Important)**:
-- Networked academic search works with **zero configuration** by default. It automatically uses public free endpoints: OpenAlex, Crossref, arXiv, Semantic Scholar.
-- You do **not** need a Google Scholar API key.
-- Only add `SEMANTIC_SCHOLAR_API_KEY` in `.env` if you use Semantic Scholar very frequently.
-- Searching itself does not consume LLM tokens.
+## Command Line
 
-Supported model examples:
-- DeepSeek (recommended): `deepseek-chat` / `deepseek-v4-flash` / `deepseek-reasoner`
-- Local: Ollama, LM Studio, vLLM, llama.cpp server — any OpenAI-compatible endpoint
-
-## Main Features (works in both Desktop and Web mode)
-
-- Drag & drop PDF / DOCX / TXT / MD for local text extraction
-- Standalone long-form paper generation (with real citations)
-- Citation verification + floating improvement suggestions
-- Chat-assisted writing + per-project Library
-- Export to DOCX / PDF
-
-**Recommended way to start**: `academic-agent desktop` — opens a native window like a regular app. No need to manually visit 127.0.0.1 in a browser.
-
-**Note**: Text is only sent to the model you configured when you click "Generate paper", "Analyze structure", "Verify citations", etc. Document parsing happens 100% locally.
-
-## CLI Usage (optional)
+Basic commands are available without the web UI:
 
 ```bash
-# Search
-academic-agent search "retrieval augmented generation" --limit 8
+# Search for papers
+academic-agent search "topic or question" --limit 10
 
-# Verify citation
-academic-agent verify --doi "10.48550/arXiv.2312.10997"
+# Verify a specific citation
+academic-agent verify --doi "10.xxxx/xxxx"
 
-# Analyze local file
-academic-agent analyze paper.md --output analysis.md
+# Analyze an existing draft
+academic-agent analyze draft.md --output analysis.md
 
-# Generate paper (add --search-limit 0 to skip web search and use only model knowledge)
-academic-agent write "your topic" --words 8000 --citations 15 --output draft.md
+# Generate a paper directly
+academic-agent write "your research topic" --words 8000 --citations 20 --output paper.md
 ```
 
----
+Add `--search-limit 0` if you want to skip external search and rely only on the model.
 
-## Use Local Models for a More Offline Experience
+## Local Models
 
-1. Install [Ollama](https://ollama.com) (or LM Studio)
-2. Pull a model:
-   ```bash
-   ollama pull qwen2.5:14b
-   # or
-   ollama pull llama3.1
-   ```
-3. Start Ollama (it listens on port 11434 by default)
-4. In the Joeku login form enter:
+You can use models running on your own machine. A common setup is Ollama:
+
+1. Install and start Ollama.
+2. Pull a model, for example `ollama pull qwen2.5:14b`.
+3. In the Joeku interface use:
    - Base URL: `http://localhost:11434/v1`
-   - API Key: `ollama`
-   - Model: `qwen2.5:14b` (or the name you pulled)
+   - API Key: anything (commonly `ollama`)
+   - Model: the name of the model you pulled
 
-5. When generating papers you can:
-   - Set "English citations" to 5 or lower, or
-   - Uncheck "Search English literature online", or
-   - Use CLI flag `--search-limit 0`
+To reduce reliance on external search during generation, lower the citation target or disable web search in the generation options.
 
-## Cloud Deployment & Public Access
+## Deployment
 
-Yes, you're correct.
+The web server can be exposed if you want to access it from other machines or share it with a small group.
 
-Many web projects on GitHub are deployed to cloud servers (Render, Railway, Fly.io, VPS, etc.). Users simply visit a public URL — no cloning, no local server, no localhost.
-
-**Why is this project local-first by design?**
-- It uses **your own LLM API keys** (DeepSeek, OpenAI, etc.).
-- Documents, Library items, and projects live on local disk by default.
-- Privacy is a core goal.
-
-**Good news: it supports cloud deployment (BYOK style)**
-
-The backend never stores API keys. Keys travel from the browser via headers. Once deployed, users visit your URL, enter their own key in the UI, and start working.
-
-### Quick Deployment
-
-**Using Docker (recommended)**
-
-仓库已提供 `Dockerfile` 和 `docker-compose.yml`。
+Run with an explicit host:
 
 ```bash
-# 本地构建并运行
-docker compose up --build
-
-# 或者
-docker build -t joeku .
-docker run -p 8000:8000 joeku
+academic-agent web --host 0.0.0.0 --port 8000
 ```
 
-然后访问 `http://localhost:8000`
+For containerized deployment a Dockerfile and docker-compose.yml are included. On platforms that support persistent disks (Render, Railway, Fly.io, etc.), set the `DEFAULT_DATA_ROOT` environment variable and mount a volume so that projects and libraries survive restarts.
 
-**一键部署到 Render（推荐，免费额度可用）**：
-[![Deploy to Render](https://render.com/images/deploy-to-render-button.svg)](https://render.com/deploy?repo=你的仓库地址)
+Note that any data stored through the interface will live on the server. There is currently no built-in user authentication or per-user isolation, so treat a publicly reachable instance as a personal or trusted-team tool.
 
-或手动：
-- New Web Service → Connect GitHub repo
-- Build Command: `pip install uv && uv pip install --system -e .`
-- Start Command: `python -m academic_agent.cli web --host 0.0.0.0 --port $PORT`
-- **重要**：在 Environment 设置 `DEFAULT_DATA_ROOT=/var/data` 并挂载 Persistent Disk
+## How Paper Generation Works
 
-**Other platforms**:
-- Railway, Fly.io, VPS support Docker or direct run.
-- Set `DEFAULT_DATA_ROOT` and mount persistent storage.
+Long papers are not produced in a single call. The process is:
 
-**Public Demo Notes**:
-Uploaded documents live on the server. Best for personal or self-hosted use. Add protection for public demos.
+1. Search and collect sources according to the requested citation count.
+2. Create a title, thesis, and section outline with target lengths.
+3. Write sections one by one, passing relevant sources and constraints to the model.
+4. Assemble the final document and add a formatted reference list.
 
-**2. Run directly on a server**
+This approach stays within typical context limits and produces more consistent structure than asking for the entire paper at once.
 
-```bash
-uv sync
-uv run academic-agent web --host 0.0.0.0 --port 8000
-```
+## Troubleshooting
 
-Or under systemd/supervisor.
+- "Missing API Key": Fill in the connection form in the interface.
+- Connection errors: Check that the Base URL is correct and the model server is reachable.
+- Port already in use: Use `--port` to choose a different one.
+- Local search or library features not working in a deployed instance: Make sure `DEFAULT_DATA_ROOT` points to a writable location with sufficient disk space.
 
-**Notes for public/cloud deployments**:
-- Uploaded files live on the server disk.
-- No multi-user isolation or auth yet (suitable for personal/small team use — add your own if needed).
-- Generation is resource heavy — consider rate limits.
-- For public demos, pin data root or improve storage later.
-
-### Recommended Hybrid Usage
-- Normal users → Desktop mode (`academic-agent`)
-- Quick public use → Deploy once and share the URL
-- Advanced → Self-host or local
-
-This preserves strong local/privacy options while making the project usable like other GitHub tools via a URL.
-
-需要我继续完善吗？
-- 优化 Dockerfile（多阶段构建、更好生产配置）
-- 加部署文档 + 一键按钮说明
-- 改进数据存储以便更好支持多用户云部署
-- 或者继续强化桌面打包（exe / 更好 launcher）？
-
-告诉我你想优先走哪个方向。
-
-这样核心写作和聊天完全由本地 LLM 完成，只有想用真实引用时才联网。
-
-## 常见问题
-
-- **提示缺少 API Key**：在网页右上角或登录弹窗里填你的配置。
-- **端口被占用**：`academic-agent web --port 8001`
-- **想让同一局域网其他人访问**（不推荐日常使用）：`academic-agent web --host 0.0.0.0 --port 8000`（注意防火墙和安全）。
-- **完全不想联网搜索**：生成时设置 search_limit=0，或取消 web_search。
-
----
-
-## 旧版安装流程（兼容保留）
-
-如果你更习惯老命令：
-
-```powershell
-python -m venv .venv
-.\.venv\Scripts\Activate.ps1
-pip install -e .
-# 然后
-academic-agent
-```
-
-**推荐**：直接双击 `Joeku.bat`（会自动创建环境并以桌面窗口启动）。
-
-## 设计说明
-
-独立长篇生成（现支持最高 30k words）不是一次性要求模型输出 30k words，而是：
-
-1. 检索并归一化文献资料（可通过 --citations 精确控制最终纳入的参考文献数量）。
-2. 生成论文题目、论点、章节大纲和每节目标字数（planner 会考虑目标引用数）。
-3. 逐节写作，每节携带相关资料和引用约束。
-4. 生成参考文献和一致性检查清单。
-
-这种方式更稳定，也更适合接入上下文长度不同的 OpenAI-compatible 模型。
-
-引用审查功能：使用正则提取结构化引用标识后，复用 CitationVerifier 进行 DOI/arXiv/标题级精确查证；对整体文章使用 AcademicSearcher 拉取相关高影响力文献（覆盖 Google Scholar 常见索引范围），结合 LLM 产出可操作的改进建议。建议以结构化数据返回，由前端实现浮窗（popover）交互式标注展示。
+For purely local use the desktop command is usually the simplest option.
