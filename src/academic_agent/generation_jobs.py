@@ -17,6 +17,8 @@ class GenerationJob:
     percent: int = 0
     message: str = "准备中…"
     preview: str = ""
+    section_current: str = ""
+    sections_plan: list[dict[str, str]] = field(default_factory=list)
     result: dict[str, Any] | None = None
     error: str | None = None
 
@@ -59,7 +61,16 @@ def create_job() -> str:
     return job_id
 
 
-def update_job(job_id: str, *, step: str, percent: int, message: str, preview: str | None = None) -> None:
+def update_job(
+    job_id: str,
+    *,
+    step: str,
+    percent: int,
+    message: str,
+    preview: str | None = None,
+    section_current: str | None = None,
+    sections_plan: list[dict[str, str]] | None = None,
+) -> None:
     with _lock:
         job = _jobs.get(job_id) or _load_from_disk(job_id)
         if not job:
@@ -70,6 +81,10 @@ def update_job(job_id: str, *, step: str, percent: int, message: str, preview: s
         job.message = message
         if preview is not None:
             job.preview = preview
+        if section_current is not None:
+            job.section_current = section_current
+        if sections_plan is not None:
+            job.sections_plan = sections_plan
         _jobs[job_id] = job
         _persist(job)
 

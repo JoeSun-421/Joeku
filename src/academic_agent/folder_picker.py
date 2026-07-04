@@ -1,31 +1,42 @@
 from __future__ import annotations
 
-import threading
+import subprocess
+import sys
+
+
+_PICKER_SCRIPT = """
+import tkinter as tk
+from tkinter import filedialog
+
+root = tk.Tk()
+root.withdraw()
+root.attributes("-topmost", True)
+root.update_idletasks()
+root.update()
+folder = filedialog.askdirectory(title="选择 Joeku 本地数据目录")
+root.destroy()
+if folder:
+    print(folder, end="")
+"""
 
 
 def pick_folder_dialog() -> str | None:
-    """Open a native folder picker dialog. Returns absolute path or None if cancelled."""
-    result: list[str | None] = [None]
-    error: list[Exception | None] = [None]
+    """Open a native folder picker. Uses a subprocess so tkinter runs on Windows reliably."""
+    try:
+        completed = subprocess.run(
+            [sys.executable, "-c", _PICKER_SCRIPT],
+            capture_output=True,
+            text=True,
+            timeout=180,
+            check=False,
+        )
+    except subprocess.TimeoutExpired:
+        raise RuntimeError("文件夹选择超时，请重试或直接输入路径。") from None
+    except OSError as exc:
+        raise RuntimeError(f"无法启动文件夹选择器: {exc}") from exc
 
-    def _run() -> None:
-        try:
-            import tkinter as tk
-            from tkinter import filedialog
+    if completed.returncode != 0 and completed.stderr.strip():
+        raise RuntimeError(f"文件夹选择器错误: {completed.stderr.strip()[:300]}")
 
-            root = tk.Tk()
-            root.withdraw()
-            root.attributes("-topmost", True)
-            root.update()
-            folder = filedialog.askdirectory(title="选择论文保存文件夹")
-            root.destroy()
-            result[0] = folder or None
-        except Exception as exc:
-            error[0] = exc
-
-    thread = threading.Thread(target=_run)
-    thread.start()
-    thread.join(timeout=120)
-    if error[0]:
-        raise RuntimeError(f"无法打开文件夹选择对话框: {error[0]}") from error[0]
-    return result[0]
+    folder = (completed.stdout or "").strip()
+    return folder or None

@@ -26,3 +26,8 @@ Desktop.ini
 # Local artifacts
 _app_recovered.js
 scripts/test_article_output.md
+
+# Joeku runtime user data (picked local folders + default users/ when using repo root)
+users/
+joeku.json
+*.local.json

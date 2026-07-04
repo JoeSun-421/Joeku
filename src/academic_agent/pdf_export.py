@@ -77,7 +77,31 @@ def markdown_to_pdf(
         pdf.set_font(family, "", body_size)
     else:
         pdf.set_font("Helvetica", "", body_size)
-    pdf.add_page()
+    if opts.cover_page:
+        cover = opts.cover_page
+        pdf.ln(40)
+        for text, scale in (
+            (cover.title, 1.6),
+            (cover.subtitle, 1.1),
+            ("", 1.0),
+            (cover.author, 1.0),
+            (cover.institution, 1.0),
+            (cover.course, 1.0),
+            (cover.instructor, 1.0),
+            (cover.date, 1.0),
+        ):
+            if not (text or "").strip():
+                pdf.ln(line_h)
+                continue
+            pdf.set_font(family, "", int(body_size * scale))
+            pdf.multi_cell(0, line_h * 1.2, text if font_path else _latin_safe(text), align="C")
+            pdf.ln(line_h * 0.4)
+        pdf.set_font(family, "", body_size)
+        pdf.add_page()
+    else:
+        pdf.add_page()
+
+    in_references = False
 
     for raw in markdown_text.splitlines():
         line = raw.rstrip()
@@ -94,6 +118,14 @@ def markdown_to_pdf(
             pdf.set_font(family, "", body_size)
             continue
         if line.startswith("## "):
+            heading = line[3:].strip().lower()
+            in_references = heading in {
+                "references",
+                "works cited",
+                "bibliography",
+                "verification checklist",
+                "参考文献",
+            }
             pdf.set_font(family, "", int(body_size * 1.2))
             pdf.multi_cell(0, line_h * 1.15, safe)
             pdf.ln(1)
@@ -108,7 +140,13 @@ def markdown_to_pdf(
         if line.startswith("- ") or line.startswith("* "):
             pdf.multi_cell(0, line_h, "  • " + safe)
             continue
-        pdf.multi_cell(0, line_h, safe)
+        if not in_references and opts.first_line_indent_chars > 0:
+            indent_mm = opts.first_line_indent_chars * body_size * 0.45
+            pdf.set_x(pdf.l_margin + indent_mm)
+            pdf.multi_cell(0, line_h, safe)
+            pdf.set_x(pdf.l_margin)
+        else:
+            pdf.multi_cell(0, line_h, safe)
 
     output_path.parent.mkdir(parents=True, exist_ok=True)
     pdf.output(str(output_path))

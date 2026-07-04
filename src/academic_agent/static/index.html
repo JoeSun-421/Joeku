@@ -1,266 +1,453 @@
 <!doctype html>
-<html lang="zh-CN">
+<html lang="en">
   <head>
     <meta charset="utf-8" />
     <meta name="viewport" content="width=device-width, initial-scale=1" />
     <title>Joeku</title>
     <link rel="icon" href="/static/joeku.ico" type="image/x-icon" />
-    <link rel="stylesheet" href="/static/styles.css?v=20260702" />
+    <link rel="stylesheet" href="/static/styles.css?v=20260848" />
   </head>
   <body>
+    <!-- Custom titlebar for native desktop window (shown only in desktop mode) -->
+    <div id="appTitlebar" class="app-titlebar" hidden>
+      <div class="titlebar-drag-region">
+        <img src="/static/icon.svg" alt="" width="16" height="16" class="titlebar-icon" />
+        <span class="titlebar-title">Joeku</span>
+      </div>
+      <div class="titlebar-controls">
+        <button type="button" class="titlebar-btn" data-action="minimize" title="Minimize">—</button>
+        <button type="button" class="titlebar-btn" data-action="maximize" title="Maximize / Restore">▢</button>
+        <button type="button" class="titlebar-btn titlebar-close" data-action="close" title="Close">×</button>
+      </div>
+    </div>
+
     <div class="app-shell" id="appShell">
-      <aside class="sidebar-shell panel">
+      <aside class="sidebar-shell panel" id="sidebarShell">
         <nav class="codex-rail" id="sidebar">
-          <div class="rail-logo" title="Joeku">
-            <img src="/static/icon.svg" alt="" width="28" height="28" />
-          </div>
-          <button type="button" class="rail-btn active" data-mode="generate" title="生成论文" onclick="Joeku.rail('generate')">
+          <button type="button" class="rail-logo rail-logo-btn glass-touch" title="Toggle sidebar" onclick="Joeku.toggleSidebarPanel()">
+            <img src="/static/icon.svg" alt="Joeku" width="28" height="28" />
+          </button>
+          <button type="button" class="rail-btn active glass-touch" data-mode="generate" title="Chat &amp; write" onclick="Joeku.rail('generate')">
             <svg class="ico"><use href="/static/icons.svg#icon-write"/></svg>
           </button>
-          <button type="button" class="rail-btn" data-mode="revise" title="修改建议" onclick="Joeku.rail('revise')">
-            <svg class="ico"><use href="/static/icons.svg#icon-doc"/></svg>
-          </button>
           <div class="rail-spacer"></div>
-          <button type="button" class="rail-btn" data-mode="settings" title="设置" onclick="Joeku.rail('settings')">
-            <svg class="ico"><use href="/static/icons.svg#icon-settings"/></svg>
-          </button>
-          <button type="button" class="rail-btn" id="permBtn" title="本地文件" onclick="Joeku.perm()">
-            <span class="perm-dot" id="permDot"></span>
+          <button type="button" class="rail-btn rail-btn-foot rail-btn-settings glass-touch" id="settingsRailBtn" data-mode="settings" title="Settings" onclick="Joeku.rail('settings')">
+            <svg class="ico gear-ico"><use href="/static/icons.svg#icon-gear"/></svg>
           </button>
         </nav>
 
-        <div class="codex-panel">
-          <button type="button" class="new-chat-btn" id="newChatBtn" onclick="Joeku.newChat()">
-            <svg class="ico" aria-hidden="true"><use href="/static/icons.svg#icon-write"/></svg>
-            <span class="new-chat-label">新对话</span>
-          </button>
+        <div class="codex-panel" id="codexPanel">
+          <div class="sidebar-brand">
+            <img src="/static/icon.svg" alt="" width="22" height="22" />
+            <div class="sidebar-brand-text">
+              <strong>Joeku</strong>
+              <span>Academic Writing Agent</span>
+            </div>
+            <button type="button" class="sidebar-collapse-btn glass-touch" id="sidebarCollapseBtn" title="Collapse sidebar" onclick="Joeku.toggleSidebarPanel()">‹</button>
+          </div>
+          <div class="sidebar-divider" aria-hidden="true"></div>
           <div class="panel-section">
-            <div class="panel-top"><span class="panel-title">对话记录</span></div>
+            <div class="panel-top"><span class="panel-title">Recent chats</span></div>
             <ul class="chat-list" id="chatList"></ul>
           </div>
           <div class="panel-section panel-section-grow">
-            <div class="panel-top">
-              <span class="panel-title">项目</span>
-              <button type="button" class="btn-icon" id="newProjectBtn" title="新建项目" onclick="Joeku.newProject()">+</button>
-            </div>
+            <div class="panel-top"><span class="panel-title">Projects</span></div>
             <ul class="project-list" id="projectList"></ul>
           </div>
-          <div class="panel-status">
-            <span class="brand-sub" id="sidebarStatus">未登录</span>
-            <div class="build-tag">build 20260702</div>
+          <div class="panel-section panel-library library-panel" id="projectLibrarySection" hidden>
+            <div class="library-panel-head">
+              <div class="library-panel-brand">
+                <span class="library-panel-icon" aria-hidden="true">◆</span>
+                <div>
+                  <strong class="library-panel-title">Library</strong>
+                  <span class="library-panel-project" id="libraryProjectName">per project</span>
+                  <span class="library-panel-count" id="libraryCount">0 items</span>
+                </div>
+              </div>
+              <button type="button" class="btn-icon library-upload-btn" title="Upload" onclick="document.getElementById('libraryFileInput').click()">+</button>
+            </div>
+            <div class="library-dropzone" id="sidebarLibraryDrop">
+              <input type="file" id="libraryFileInput" accept=".pdf,.docx,.txt,.md,.markdown" multiple hidden />
+              <p class="library-dropzone-title">Drop files or click to upload</p>
+              <p class="library-dropzone-hint">PDF · Word · TXT · Markdown — scoped to active project</p>
+            </div>
+            <div class="library-list-scroll" id="libraryList"></div>
+          </div>
+          <div class="sidebar-bottom-actions">
+            <button type="button" class="codex-action primary glass-touch" id="newChatBtn" title="New chat" onclick="Joeku.newChat()">
+              <svg class="ico" aria-hidden="true"><use href="/static/icons.svg#icon-write"/></svg>
+              <span>New chat</span>
+            </button>
+            <button type="button" class="codex-action glass-touch" id="newProjectBtn" title="New project" onclick="Joeku.newProject()">
+              <svg class="ico" aria-hidden="true"><use href="/static/icons.svg#icon-doc"/></svg>
+              <span>New project</span>
+            </button>
           </div>
         </div>
+        <button type="button" class="sidebar-drawer-scrim" id="sidebarDrawerScrim" hidden onclick="Joeku.closeSidebarDrawer()" aria-label="Close sidebar"></button>
       </aside>
 
       <main class="codex-main">
-        <div class="login-banner panel" id="loginBanner" hidden>
-          <span>登录后可用论文生成与对话功能</span>
-          <button type="button" class="btn-pill sm" id="loginBannerBtn" onclick="Joeku.openLogin()">登录</button>
-        </div>
         <section class="workspace active" id="workspace-generate" data-mode="generate">
           <div class="chat-stage">
             <div class="chat-scroll">
               <div class="chat-column">
                 <div class="empty-hero" id="emptyGenerate">
-                  <h2>今天要写什么论文？</h2>
-                  <p>输入主题或上传要求文档，Joeku 将检索 Google Scholar 级英文文献并生成带链接的引用。</p>
+                  <h2>What shall we work on today?</h2>
+                  <p class="hero-sub" id="heroGreeting">An AI academic writing agent that helps you research, verify citations, and generate long, well-structured papers with real references.</p>
                   <div class="prompt-chips" id="promptChips">
-                    <button type="button" class="prompt-chip" data-prompt="人工智能与教育" onclick="Joeku.chip(this)">人工智能与教育</button>
-                    <button type="button" class="prompt-chip" data-prompt="large language models in healthcare" onclick="Joeku.chip(this)">LLM in healthcare</button>
-                    <button type="button" class="prompt-chip" data-prompt="climate change policy analysis" onclick="Joeku.chip(this)">气候变化政策分析</button>
+                    <span class="chip-loading">Preparing suggestions…</span>
                   </div>
                 </div>
                 <div class="thread" id="thread-generate"></div>
               </div>
             </div>
             <footer class="composer-dock">
-              <div class="composer-progress" id="composerProgress" hidden>
-                <div class="progress-bar"><div class="progress-bar-fill" id="genProgressFill"></div></div>
-                <span class="progress-text" id="genProgressText"></span>
+              <div class="params-reopen-bar panel" id="paramsReopenBar" hidden>
+                <span class="params-reopen-text">Generate mode — reopen parameters when ready</span>
+                <div class="params-reopen-actions">
+                  <button type="button" class="btn-pill sm glass-btn" onclick="Joeku.reopenParams()">Edit parameters</button>
+                  <button type="button" class="btn-pill sm" onclick="Joeku.exitParamsMode()">Back to chat</button>
+                </div>
               </div>
-              <div class="attach-row" id="attachRow" hidden>
-                <span class="attach-chip" id="reqChip"></span>
-                <button type="button" class="attach-clear" id="clearReqBtn" onclick="Joeku.clearReq()">×</button>
+              <div class="composer-card panel panel-liquid">
+                <form class="composer-input-row" id="composerForm" onsubmit="event.preventDefault(); return false;">
+                  <input type="file" id="reqFileInput" accept=".pdf,.docx,.txt,.md,.markdown" hidden />
+                  <select id="composerModel" class="composer-model-native" hidden aria-hidden="true" tabindex="-1"></select>
+                  <button type="button" class="composer-btn" id="attachReqBtn" title="Attach requirements" onclick="Joeku.attachReq(event)">
+                    <svg class="ico"><use href="/static/icons.svg#icon-doc"/></svg>
+                  </button>
+                  <textarea id="composerInput" rows="1" placeholder="Message Joeku…"></textarea>
+                  <div class="composer-pickers">
+                    <div class="glass-picker" id="workspacePicker">
+                      <button type="button" class="glass-picker-btn" id="workspacePickerBtn" aria-haspopup="listbox" aria-expanded="false">
+                        <span class="glass-picker-value" id="workspacePickerValue">Chat</span>
+                        <span class="glass-picker-chev" aria-hidden="true">▾</span>
+                      </button>
+                    </div>
+                    <div class="glass-picker" id="modelPicker">
+                      <button type="button" class="glass-picker-btn" id="modelPickerBtn" aria-haspopup="listbox" aria-expanded="false">
+                        <span class="glass-picker-value" id="modelPickerValue">Model</span>
+                        <span class="glass-picker-chev" aria-hidden="true">▾</span>
+                      </button>
+                    </div>
+                    <div class="glass-picker" id="modePicker">
+                      <button type="button" class="glass-picker-btn" id="modePickerBtn" aria-haspopup="listbox" aria-expanded="false">
+                        <span class="glass-picker-value" id="modePickerValue">Default</span>
+                        <span class="glass-picker-chev" aria-hidden="true">▾</span>
+                      </button>
+                    </div>
+                  </div>
+                  <button type="button" class="composer-btn send" id="composerSendBtn" title="Send (Ctrl+Enter)" onclick="Joeku.composerSend()">
+                    <svg class="ico"><use href="/static/icons.svg#icon-send"/></svg>
+                  </button>
+                </form>
+                <div class="composer-api-reauth" id="composerApiReauth" hidden>
+                  <input id="composerApiKey" class="glass-input" type="password" placeholder="Re-enter API Key after switching models" autocomplete="off" />
+                  <button type="button" class="btn-pill sm glass-btn" onclick="Joeku.confirmComposerApiKey()">Confirm</button>
+                </div>
               </div>
-              <form class="composer-pill panel panel-liquid" id="composerForm" onsubmit="return Joeku.composerSubmit(event)">
-                <input type="file" id="reqFileInput" accept=".pdf,.docx,.txt,.md,.markdown" hidden />
-                <button type="button" class="composer-btn" id="attachReqBtn" title="上传要求文档" onclick="Joeku.attachReq()">
-                  <svg class="ico"><use href="/static/icons.svg#icon-doc"/></svg>
-                </button>
-                <textarea id="composerInput" rows="1" placeholder="Message Joeku…"></textarea>
-                <button type="submit" class="composer-btn send" title="发送">
-                  <svg class="ico"><use href="/static/icons.svg#icon-send"/></svg>
-                </button>
-              </form>
             </footer>
           </div>
 
           <aside class="doc-panel panel" id="docPanel">
             <div class="doc-head">
               <div class="doc-head-left">
-                <button type="button" class="doc-toggle-btn" id="docToggleBtn" title="收起文稿" onclick="Joeku.toggleDoc()">›</button>
-                <span>文稿</span>
+                <button type="button" class="doc-toggle-btn" id="docToggleBtn" title="Collapse document" onclick="Joeku.toggleDoc()">›</button>
+                <span>Document</span>
+                <div class="doc-tabs">
+                  <button type="button" class="doc-tab active" id="docTabPreview" onclick="Joeku.setDocView('preview')">Preview</button>
+                  <button type="button" class="doc-tab" id="docTabEdit" onclick="Joeku.setDocView('edit')">Edit</button>
+                </div>
               </div>
               <div class="doc-head-actions">
-                <span class="doc-status" id="docStatus">等待生成</span>
+                <span class="doc-status" id="docStatus">Waiting</span>
+                <button type="button" class="btn-pill sm doc-ann-list-btn" id="docAnnListBtn" hidden title="批注列表" onclick="Joeku.toggleAnnotationsPanel()">批注 <span id="docAnnCount">0</span></button>
+                <button type="button" class="btn-pill sm" id="editCoverBtn" title="Edit cover page" onclick="Joeku.editCoverPage()">Cover</button>
+                <button type="button" class="btn-pill sm" id="pickExportFolderBtn" title="Export folder" onclick="Joeku.pickExportFolder()">Folder</button>
                 <button type="button" class="btn-pill sm" id="exportDocxBtn" disabled onclick="Joeku.exportDocx()">Word</button>
                 <button type="button" class="btn-pill sm" id="exportPdfBtn" disabled onclick="Joeku.exportPdf()">PDF</button>
               </div>
             </div>
-            <article class="doc-body" id="docPreview"></article>
+            <div class="doc-body-wrap" id="docBodyWrap">
+              <article class="doc-body" id="docPreview"></article>
+              <div class="doc-annotation-layer" id="docAnnotationLayer" aria-live="polite"></div>
+              <div class="doc-selection-toolbar panel" id="docSelectionToolbar" hidden>
+                <span class="doc-selection-count" id="docSelectionCount">No selection</span>
+                <input id="annotationInput" type="text" placeholder="写下批注，如：语气更学术、补充引用…" />
+                <button type="button" class="btn-pill sm" id="annotationSubmitBtn" onclick="Joeku.submitAnnotation()">批注</button>
+                <button type="button" class="btn-pill sm ghost" id="annotationCancelBtn" title="取消">×</button>
+              </div>
+              <aside class="doc-annotations-panel panel" id="docAnnotationsPanel" hidden aria-label="批注列表"></aside>
+            </div>
+            <textarea class="doc-editor" id="docEditor" hidden placeholder="Edit Markdown directly…"></textarea>
           </aside>
-          <button type="button" class="doc-expand-tab panel" id="docExpandTab" hidden title="展开文稿" onclick="Joeku.expandDoc()">‹ 文稿</button>
+          <button type="button" class="doc-expand-tab panel" id="docExpandTab" hidden title="Expand document" onclick="Joeku.expandDoc()">‹ Doc</button>
         </section>
 
-        <section class="workspace" id="workspace-revise" data-mode="revise">
-          <div class="chat-stage full">
-            <div class="chat-scroll">
-              <div class="chat-column">
-                <div class="empty-hero" id="emptyRevise">
-                  <h2>修改建议</h2>
-                  <p>粘贴论文段落或上传文档，获取结构化改进意见。</p>
-                </div>
-                <div class="thread" id="thread-revise"></div>
-              </div>
-            </div>
-            <footer class="composer-dock">
-              <div class="attach-row" id="reviseAttachRow" hidden>
-                <span class="attach-chip" id="reviseChip"></span>
-                <button type="button" class="attach-clear" id="clearReviseBtn" onclick="Joeku.clearRevise()">×</button>
-              </div>
-              <form class="composer-pill panel panel-liquid" id="reviseForm">
-                <input type="file" id="reviseFileInput" accept=".pdf,.docx,.txt,.md,.markdown" hidden />
-                <button type="button" class="composer-btn" id="reviseAttachBtn" title="上传" onclick="Joeku.attachRevise()">
-                  <svg class="ico"><use href="/static/icons.svg#icon-doc"/></svg>
-                </button>
-                <textarea id="reviseInput" rows="1" placeholder="Message Joeku…"></textarea>
-                <button type="submit" class="composer-btn send" title="发送">
-                  <svg class="ico"><use href="/static/icons.svg#icon-send"/></svg>
-                </button>
-              </form>
-            </footer>
-          </div>
-        </section>
       </main>
 
-      <section class="settings-drawer panel" id="workspace-settings">
+      <button type="button" class="settings-scrim" id="settingsScrim" hidden onclick="Joeku.rail('generate')" aria-label="Close settings"></button>
+      <section class="settings-drawer panel panel-liquid" id="workspace-settings">
         <header class="drawer-head">
-          <span>设置</span>
-          <button type="button" class="btn-pill" id="closeSettings" onclick="Joeku.rail('generate')">关闭</button>
+          <span>Settings</span>
+          <button type="button" class="btn-pill glass-touch" id="closeSettings" onclick="Joeku.rail('generate')">Close</button>
         </header>
         <div class="panel-body">
-          <form id="settingsForm" class="form-col">
-            <label class="field"><span class="field-label">API Key</span><input id="apiKeyInput" type="password" autocomplete="off" /></label>
-            <label class="field"><span class="field-label">Base URL</span><input id="baseUrlInput" placeholder="https://api.deepseek.com/v1" /></label>
-            <label class="field"><span class="field-label">Model</span>
-              <select id="modelInput">
-                <option value="deepseek-chat">deepseek-chat（推荐）</option>
-                <option value="deepseek-reasoner">deepseek-reasoner</option>
-                <option value="deepseek-v4-flash">deepseek-v4-flash</option>
-                <option value="gpt-4o-mini">gpt-4o-mini</option>
-              </select>
-            </label>
-            <label class="field"><span class="field-label">Tavily Key（可选）</span><input id="tavilyKeyInput" type="password" autocomplete="off" placeholder="tvly-..." /></label>
-            <div class="params-foot">
-              <button type="button" class="btn-pill" id="testConfigBtn" onclick="Joeku.testSettings()">测试连接</button>
-              <button type="submit" class="btn-primary">保存</button>
+          <nav class="settings-tabs" role="tablist">
+            <button type="button" class="settings-tab active glass-touch" data-settings-tab="profile" onclick="Joeku.setSettingsTab('profile')">Profile</button>
+            <button type="button" class="settings-tab glass-touch" data-settings-tab="api" onclick="Joeku.setSettingsTab('api')">API Key</button>
+            <button type="button" class="settings-tab glass-touch" data-settings-tab="local" onclick="Joeku.setSettingsTab('local')">Local folder</button>
+          </nav>
+          <div class="settings-tab-panel active" id="settingsTabProfile" data-settings-panel="profile">
+            <div class="settings-user-card panel">
+              <div class="settings-user-avatar" id="settingsUserAvatar">J</div>
+              <div class="settings-user-meta">
+                <strong id="settingsUserName">Not signed in</strong>
+                <span id="settingsUserModel">—</span>
+              </div>
             </div>
-          </form>
-          <button type="button" class="btn-pill logout-btn" id="logoutBtn" onclick="Joeku.logout()">退出</button>
+            <form class="form-col">
+              <label class="field"><span class="field-label">Display name</span><input id="displayNameInput" placeholder="e.g. Joe / Lab A" autocomplete="off" /></label>
+              <label class="field"><span class="field-label">Model</span>
+                <select id="modelInput">
+                  <option value="deepseek-chat">deepseek-chat (recommended)</option>
+                  <option value="deepseek-v4-pro">deepseek-v4-pro (high quality)</option>
+                  <option value="deepseek-reasoner">deepseek-reasoner</option>
+                  <option value="deepseek-v4-flash">deepseek-v4-flash</option>
+                  <option value="gpt-4o-mini">gpt-4o-mini</option>
+                </select>
+              </label>
+              <button type="button" class="btn-primary glass-touch" id="applyModelBtn" onclick="Joeku.applyModel()">Apply model</button>
+            </form>
+            <button type="button" class="btn-pill logout-btn glass-touch" id="logoutBtn" onclick="Joeku.logout()">Sign out</button>
+          </div>
+          <div class="settings-tab-panel" id="settingsTabApi" data-settings-panel="api" hidden>
+            <p class="settings-section-hint">API credentials stay on this device only.</p>
+            <form id="settingsForm" class="form-col">
+              <label class="field"><span class="field-label">API Key</span><input id="apiKeyInput" type="password" autocomplete="off" /></label>
+              <label class="field"><span class="field-label">Base URL</span><input id="baseUrlInput" placeholder="https://api.deepseek.com/v1" /></label>
+              <label class="field"><span class="field-label">Tavily Key (optional)</span><input id="tavilyKeyInput" type="password" autocomplete="off" placeholder="tvly-..." /></label>
+              <div class="params-foot">
+                <button type="button" class="btn-pill glass-touch" id="testConfigBtn" onclick="Joeku.testSettings()">Test connection</button>
+                <button type="submit" class="btn-primary glass-touch">Save &amp; sign in</button>
+              </div>
+            </form>
+          </div>
+          <div class="settings-tab-panel" id="settingsTabLocal" data-settings-panel="local" hidden>
+            <p class="settings-section-hint">Projects, chats, and library files are stored where the app runs.</p>
+            <p class="field-hint" id="hostedNote" style="display:none; color:#67e8f9;">This instance is hosted — data is managed on the server (DEFAULT_DATA_ROOT).</p>
+            <label class="field">
+              <span class="field-label">Data folder</span>
+              <div class="field-row">
+                <input id="settingsDataRoot" readonly placeholder="Not set" />
+                <button type="button" class="btn-pill glass-touch" onclick="Joeku.pickDataRoot()">Browse</button>
+              </div>
+            </label>
+            <button type="button" class="btn-pill glass-touch settings-perm-btn" id="settingsPermBtn" onclick="Joeku.perm()">
+              <span class="perm-dot" id="permDot"></span> Grant local file access
+            </button>
+          </div>
           <div id="settingsResult" class="meta"></div>
         </div>
       </section>
     </div>
 
     <div class="login-gate" id="loginGate" hidden>
+      <div class="login-gate-bg" aria-hidden="true"></div>
+      <div class="login-gate-orb login-gate-orb-a" aria-hidden="true"></div>
+      <div class="login-gate-orb login-gate-orb-b" aria-hidden="true"></div>
       <div class="login-gate-card panel panel-liquid">
-        <img src="/static/icon.svg" alt="" width="56" height="56" class="login-icon" />
-        <h1 class="login-gate-title">登录 Joeku</h1>
-        <p class="login-gate-sub">配置 API Key 与模型后即可生成论文</p>
+        <div class="login-gate-brand">
+          <img src="/static/icon.svg" alt="" width="64" height="64" class="login-icon" />
+          <div>
+            <h1 class="login-gate-title">Joeku</h1>
+            <p class="login-gate-tagline">Local academic writing agent</p>
+          </div>
+        </div>
+        <p class="login-gate-sub">Choose a local data folder, sign in to an existing identity, or register a new one. Each identity has its own projects and library.</p>
         <form id="loginForm" class="login-gate-form" onsubmit="event.preventDefault(); Joeku.login();">
+          <label class="field">
+            <span class="field-label">Local data folder</span>
+            <div class="field-row">
+              <input id="loginDataRoot" placeholder="e.g. D:\JoekuData" required />
+              <button type="button" class="btn-pill" onclick="Joeku.pickDataRoot()">Browse</button>
+            </div>
+            <span class="field-hint" id="loginDataRootHint">Not selected — data stored where the app is running</span>
+            <p class="field-hint" id="hostedDataHint" style="display:none;margin-top:4px;color:#67e8f9;font-size:12px;">Hosted instance is using a server data folder.</p>
+          </label>
+          <div class="login-mode-tabs" role="tablist">
+            <button type="button" class="login-mode-tab active" id="loginModeExisting" data-mode="existing" onclick="Joeku.setLoginMode('existing')">Sign in</button>
+            <button type="button" class="login-mode-tab" id="loginModeRegister" data-mode="register" onclick="Joeku.setLoginMode('register')">Register</button>
+          </div>
+          <div id="loginExistingFields">
+            <label class="field">
+              <span class="field-label">Identity</span>
+              <select id="loginIdentity" onchange="Joeku.onIdentityChange()">
+                <option value="">Select a data folder first</option>
+              </select>
+              <span class="field-hint">Each identity has separate projects, chats, and library</span>
+            </label>
+          </div>
+          <div id="loginNewIdentityFields" hidden>
+            <label class="field">
+              <span class="field-label">New identity name</span>
+              <input id="loginDisplayName" placeholder="e.g. Course A / Research group" autocomplete="off" />
+            </label>
+            <label class="field">
+              <span class="field-label">Agent preferences (optional)</span>
+              <input id="loginPersonaHint" placeholder="e.g. Prefer APA, concise tone, outline-first" autocomplete="off" />
+            </label>
+          </div>
           <label class="field">
             <span class="field-label">API Key</span>
             <input id="loginApiKey" type="password" placeholder="sk-..." autocomplete="off" required />
           </label>
           <label class="field">
-            <span class="field-label">接口地址</span>
+            <span class="field-label">Base URL</span>
             <input id="loginBaseUrl" placeholder="https://api.deepseek.com/v1" />
           </label>
           <label class="field">
-            <span class="field-label">模型</span>
+            <span class="field-label">Model</span>
             <select id="loginModel">
-              <option value="deepseek-chat">deepseek-chat（推荐，稳定）</option>
+              <option value="deepseek-chat">deepseek-chat (recommended)</option>
+              <option value="deepseek-v4-pro">deepseek-v4-pro (high quality)</option>
               <option value="deepseek-reasoner">deepseek-reasoner</option>
               <option value="deepseek-v4-flash">deepseek-v4-flash</option>
-              <option value="gpt-4o-mini">gpt-4o-mini（OpenAI 兼容）</option>
+              <option value="gpt-4o-mini">gpt-4o-mini (OpenAI compatible)</option>
             </select>
           </label>
           <p class="login-gate-status" id="loginStatus"></p>
           <div class="login-gate-actions">
-            <button type="button" class="btn-pill" id="loginSkipBtn" onclick="Joeku.skipLogin()">稍后配置</button>
-            <button type="submit" class="btn-primary" id="loginSubmitBtn">连接并继续</button>
+            <button type="submit" class="btn-primary login-submit" id="loginSubmitBtn">Connect</button>
           </div>
         </form>
+        <p class="login-gate-foot">API keys are stored locally in your browser only — never uploaded to Joeku servers.</p>
       </div>
     </div>
 
-    <div class="modal-layer" id="paramsDialog" hidden>
-      <button type="button" class="modal-scrim" data-close-modal="paramsDialog" aria-label="关闭"></button>
-      <form id="paramsForm" class="params-card modal-card panel panel-liquid">
-        <h2>生成参数</h2>
-        <p class="params-hint" id="paramsHint">确认参数后开始</p>
+    <div class="modal-layer" id="newProjectDialog" hidden>
+      <button type="button" class="modal-scrim" data-close-modal="newProjectDialog" aria-label="Close"></button>
+      <form id="newProjectForm" class="params-card modal-card panel panel-liquid">
+        <h2>New project</h2>
+        <p class="params-hint">Name the project and optionally add files or URLs to the library.</p>
         <div class="form-col">
-          <label class="field"><span class="field-label">主题</span><input id="genTopic" required /></label>
-          <label class="field"><span class="field-label">字数</span><input id="genWords" type="number" min="300" max="30000" step="100" value="6000" /></label>
-          <label class="field"><span class="field-label">英文引用数</span><input id="genCites" type="number" min="5" max="60" value="15" /></label>
-          <label class="field"><span class="field-label">语言</span><select id="genLanguage"></select></label>
-          <label class="field"><span class="field-label">段内引用格式</span><select id="genCitationFormat"></select></label>
-          <div class="params-subhead">导出排版</div>
-          <label class="field"><span class="field-label">字体</span><select id="genFontFamily"></select></label>
-          <label class="field"><span class="field-label">正文字号</span><select id="genFontSize"></select></label>
-          <label class="field"><span class="field-label">行间距</span><select id="genLineSpacing"></select></label>
-          <label class="field chk"><input type="checkbox" id="genWebSearch" checked /><span>联网检索英文文献</span></label>
-          <label class="field chk"><input type="checkbox" id="genDeAi" /><span>去 AI 化润色</span></label>
-          <label class="field chk"><input type="checkbox" id="genDeepQuality" /><span>深度质量检查</span></label>
+          <label class="field"><span class="field-label">Project name</span><input id="newProjectName" required placeholder="e.g. Thesis / Course paper A" /></label>
           <label class="field">
-            <span class="field-label">保存目录</span>
+            <span class="field-label">Local files</span>
+            <input type="file" id="newProjectFiles" accept=".pdf,.docx,.txt,.md,.markdown" multiple />
+            <span class="field-hint">PDF, Word, TXT, Markdown — multiple files OK</span>
+          </label>
+          <label class="field">
+            <span class="field-label">Web URLs</span>
+            <textarea id="newProjectUrls" rows="3" placeholder="One URL per line, e.g.&#10;https://example.com/article"></textarea>
+            <span class="field-hint">Joeku fetches page content into your library</span>
+          </label>
+        </div>
+        <div class="params-actions">
+          <button type="button" class="btn-pill" onclick="Joeku.closeNewProject()">Cancel</button>
+          <button type="submit" class="btn-primary">Create</button>
+        </div>
+      </form>
+    </div>
+
+    <div class="modal-layer modal-locked" id="paramsDialog" hidden>
+      <div class="modal-scrim modal-scrim-locked" aria-hidden="true"></div>
+      <form id="paramsForm" class="params-card modal-card panel panel-liquid">
+        <h2>Generation parameters</h2>
+        <p class="params-hint" id="paramsHint">Confirm parameters to start</p>
+        <div class="form-col">
+          <label class="field"><span class="field-label">Topic</span><input id="genTopic" required /></label>
+          <label class="field">
+            <span class="field-label">Body word count</span>
+            <input id="genWords" type="number" min="300" max="30000" step="100" value="6000" />
+            <span class="field-hint">Body text only — references and checklists excluded</span>
+          </label>
+          <label class="field"><span class="field-label">English citations</span><input id="genCites" type="number" min="5" max="60" value="15" /></label>
+          <label class="field"><span class="field-label">Language</span><select id="genLanguage"></select></label>
+          <label class="field"><span class="field-label">In-text citation style</span><select id="genCitationFormat"></select></label>
+          <div class="params-subhead">Export formatting</div>
+          <label class="field"><span class="field-label">Font</span><select id="genFontFamily"></select></label>
+          <label class="field"><span class="field-label">Body font size</span><select id="genFontSize"></select></label>
+          <label class="field"><span class="field-label">Line spacing</span><select id="genLineSpacing"></select></label>
+          <label class="field"><span class="field-label">First-line indent</span><select id="genFirstLineIndent"></select></label>
+          <label class="field chk"><input type="checkbox" id="genWebSearch" checked /><span>Search English literature online</span></label>
+          <label class="field chk"><input type="checkbox" id="genDeAi" /><span>De-AI polish</span></label>
+          <label class="field chk"><input type="checkbox" id="genDeepQuality" /><span>Deep quality check</span></label>
+          <label class="field">
+            <span class="field-label">Save folder</span>
             <div class="field-row">
-              <input id="saveFolder" readonly placeholder="可选" />
-              <button type="button" class="btn-pill" id="pickFolderBtn" onclick="Joeku.pickFolder()">选择</button>
+              <input id="saveFolder" readonly placeholder="Optional" />
+              <button type="button" class="btn-pill" id="pickFolderBtn" onclick="Joeku.pickFolder()">Browse</button>
             </div>
           </label>
         </div>
         <div class="params-actions">
-          <button type="button" class="btn-pill" id="paramsCancel" onclick="Joeku.closeParams()">取消</button>
-          <button type="submit" class="btn-primary">开始生成</button>
+          <button type="button" class="btn-pill" id="paramsCancel" onclick="Joeku.dismissParams()">Later</button>
+          <button type="submit" class="btn-primary">Start generating</button>
+        </div>
+      </form>
+    </div>
+
+    <div class="modal-layer modal-locked" id="coverDialog" hidden>
+      <div class="modal-scrim modal-scrim-locked" aria-hidden="true"></div>
+      <form id="coverForm" class="params-card modal-card panel panel-liquid">
+        <h2>Cover page</h2>
+        <p class="params-hint">Paper generated. Add cover info for Word/PDF export, or skip.</p>
+        <div class="form-col">
+          <label class="field"><span class="field-label">Title</span><input id="coverTitle" required /></label>
+          <label class="field"><span class="field-label">Subtitle (optional)</span><input id="coverSubtitle" placeholder="e.g. An empirical study using XX method" /></label>
+          <label class="field"><span class="field-label">Author</span><input id="coverAuthor" placeholder="Name" /></label>
+          <label class="field"><span class="field-label">Institution</span><input id="coverInstitution" placeholder="e.g. XX University" /></label>
+          <label class="field"><span class="field-label">Course (optional)</span><input id="coverCourse" placeholder="e.g. Academic writing" /></label>
+          <label class="field"><span class="field-label">Instructor (optional)</span><input id="coverInstructor" /></label>
+          <label class="field"><span class="field-label">Date</span><input id="coverDate" placeholder="e.g. June 2026" /></label>
+        </div>
+        <div class="params-actions">
+          <button type="button" class="btn-pill" onclick="Joeku.skipCoverPage()">Skip</button>
+          <button type="submit" class="btn-primary">Save cover</button>
         </div>
       </form>
     </div>
 
     <div class="modal-layer" id="permDialog" hidden>
-      <button type="button" class="modal-scrim" data-close-modal="permDialog" aria-label="关闭"></button>
+      <button type="button" class="modal-scrim" data-close-modal="permDialog" aria-label="Close"></button>
       <div class="perm-dialog modal-card panel">
-        <h2>本地文件权限</h2>
+        <h2>Local file access</h2>
         <div class="perm-actions">
-          <button type="button" class="btn-pill" id="permDeny" onclick="Joeku.permDeny()">暂不</button>
-          <button type="button" class="btn-primary" id="permGrant" onclick="Joeku.permGrant()">同意</button>
+          <button type="button" class="btn-pill" id="permDeny" onclick="Joeku.permDeny()">Not now</button>
+          <button type="button" class="btn-primary" id="permGrant" onclick="Joeku.permGrant()">Allow</button>
         </div>
       </div>
     </div>
 
     <pre id="genResult" hidden aria-hidden="true"></pre>
     <textarea id="reviseDocText" hidden aria-hidden="true"></textarea>
+    <div id="pickerPortal" class="picker-portal" aria-hidden="true">
+      <div class="glass-picker-menu" id="workspacePickerMenu" hidden role="listbox" aria-label="Workspace mode"></div>
+      <div class="glass-picker-menu" id="modelPickerMenu" hidden role="listbox" aria-label="Model"></div>
+      <div class="glass-picker-menu" id="modePickerMenu" hidden role="listbox" aria-label="Chat style"></div>
+    </div>
+
     <div id="joekuFatal"></div>
 
     <script>
       window.Joeku = window.Joeku || {
         ready: false,
         rail: function () {},
-        newChat: function () { alert("Joeku 正在加载，请稍候…"); },
-        newProject: function () { alert("Joeku 正在加载，请稍候…"); },
+        newChat: function () { alert("Joeku is loading…"); },
+        newProject: function () { alert("Joeku is loading…"); },
+        deleteProject: function () {},
+        deleteChat: function () {},
         openLogin: function () {},
-        skipLogin: function () {},
         login: function () {},
+        setLoginMode: function () {},
+        setChatMode: function () {},
+        setWorkspaceMode: function () {},
+        setSettingsTab: function () {},
+        toggleSidebarPanel: function () {},
+        confirmComposerApiKey: function () {},
+        closeNewProject: function () {},
         logout: function () {},
         chip: function () {},
         attachReq: function () {},
@@ -276,10 +463,18 @@
         permGrant: function () {},
         permDeny: function () {},
         pickFolder: function () {},
-        closeParams: function () {},
-        composerSubmit: function () { alert("Joeku 正在加载，请稍候…"); return false; },
+        dismissParams: function () {},
+        reopenParams: function () {},
+        exitParamsMode: function () {},
+        togglePicker: function () {},
+        skipCoverPage: function () {},
+        editCoverPage: function () {},
+        composerSubmit: function () { return false; },
+        composerSend: function () { alert("Joeku is loading…"); },
+        reviseSend: function () {},
       };
       window.onerror = function (msg, _url, line) {
+        if (typeof msg === "string" && /ResizeObserver loop/i.test(msg)) return true;
         var el = document.getElementById("joekuFatal");
         if (el) {
           el.textContent = "JS Error: " + msg + " (line " + line + ")";
@@ -287,6 +482,9 @@
         }
       };
     </script>
-    <script src="/static/app.js?v=20260702"></script>
+    <script src="/static/liquid-glass.js?v=20260831"></script>
+    <script src="/static/thinking-dots.js?v=20260848"></script>
+    <script src="/static/joeku-features.js?v=20260836"></script>
+    <script src="/static/app.js?v=20260848"></script>
   </body>
 </html>

@@ -14,8 +14,36 @@ from academic_agent.models import Paper
 from academic_agent.search import AcademicSearcher
 from academic_agent.writer import LongFormWriter
 
-app = typer.Typer(help="Academic search, verification, analysis, and long-form writing agent.")
+app = typer.Typer(
+    help="Academic search, verification, analysis, and long-form writing agent.",
+    add_completion=False,
+)
 console = Console()
+
+
+@app.callback(invoke_without_command=True)
+def main(ctx: typer.Context) -> None:
+    """Default behavior: launch the desktop app.
+
+    So after install, users can simply run:
+        academic-agent
+    instead of academic-agent desktop
+    """
+    if ctx.invoked_subcommand is None:
+        try:
+            from academic_agent.desktop import run_desktop
+        except ImportError:
+            console.print("[red]pywebview not installed — cannot open native desktop window.[/red]")
+            console.print("Run this to enable the proper app window:")
+            console.print("  uv add pywebview")
+            console.print("or")
+            console.print("  pip install pywebview")
+            console.print("")
+            console.print("Then run 'academic-agent' again.")
+            console.print("If you really want the raw server, use: academic-agent web")
+            raise SystemExit(1)
+        console.print("[green]Starting Joeku Desktop (native window)...[/green]")
+        run_desktop()
 
 
 @app.command()
@@ -80,11 +108,47 @@ def web(
     host: Annotated[str, typer.Option("--host", help="Host interface for the local web app.")] = "127.0.0.1",
     port: Annotated[int, typer.Option("--port", "-p", min=1, max=65535)] = 8000,
 ) -> None:
-    """Run the drag-and-drop browser interface."""
+    """Run the local server only (for advanced use or custom browser).
+
+    This starts the backend but does NOT auto-open anything.
+    For the normal desktop app experience, just run `academic-agent` (or `academic-agent desktop`).
+    """
     import uvicorn
 
-    console.print(f"[green]Starting Joeku[/green] http://{host}:{port}")
+    url = f"http://{host}:{port}"
+    console.print(f"[green]Starting Joeku server[/green] at {url}")
+    if host not in ("127.0.0.1", "localhost"):
+        console.print("[yellow]注意：正在以公开地址模式启动。确保设置了 DEFAULT_DATA_ROOT 并做好安全措施（防火墙 / 认证）。[/yellow]")
+    console.print("Open this URL manually in your browser if needed.")
+    console.print("Tip: For the native window experience use the default command instead.")
+
     uvicorn.run("academic_agent.web:app", host=host, port=port, reload=False)
+
+
+@app.command()
+def desktop(
+    port: Annotated[int, typer.Option("--port", "-p", help="Port to use (0 = auto pick free port)")] = 0,
+    dev: Annotated[bool, typer.Option("--dev", help="Open with developer tools (debug)")] = False,
+) -> None:
+    """Launch Joeku as a native desktop application (recommended).
+
+    Opens in a proper window instead of requiring you to manually visit localhost.
+    After cloning the repo and installing, just run:
+
+        academic-agent desktop
+    """
+    try:
+        from academic_agent.desktop import run_desktop
+    except ImportError as exc:
+        console.print(
+            "[red]pywebview is required for desktop mode.[/red]\n"
+            "Install it with: pip install pywebview\n"
+            "or: uv add pywebview"
+        )
+        raise SystemExit(1) from exc
+
+    console.print("[green]Starting Joeku Desktop...[/green]")
+    run_desktop(port=port, open_devtools=dev)
 
 
 def render_paper_table(papers: list[Paper]) -> None:

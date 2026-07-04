@@ -1,0 +1,15 @@
+services:
+  - type: web
+    name: joeku
+    env: python
+    buildCommand: pip install uv && uv pip install --system -e .
+    startCommand: python -m academic_agent.cli web --host 0.0.0.0 --port $PORT
+    plan: free
+    envVars:
+      - key: DEFAULT_DATA_ROOT
+        value: /var/data/joeku   # Persistent disk recommended
+    disk:
+      name: joeku-data
+      mountPath: /var/data/joeku
+      sizeGB: 5   # Adjust as needed
+    autoDeploy: true

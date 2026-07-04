@@ -14,6 +14,7 @@ class Settings(BaseSettings):
     openai_model: str = Field(default="gpt-4.1", alias="OPENAI_MODEL")
     openai_timeout_seconds: float = Field(default=120.0, alias="OPENAI_TIMEOUT_SECONDS")
     semantic_scholar_api_key: str = Field(default="", alias="SEMANTIC_SCHOLAR_API_KEY")
+    default_data_root: str = Field(default="", alias="DEFAULT_DATA_ROOT")
 
 
 @lru_cache

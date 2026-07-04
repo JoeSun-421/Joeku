@@ -1,22 +1,28 @@
 from __future__ import annotations
 
 import math
+import re
 from collections.abc import Callable
 from concurrent.futures import ThreadPoolExecutor, as_completed
 from pathlib import Path
+import threading
 
 from pydantic import ValidationError
 
-from academic_agent.citation_formats import citation_format_instruction, render_references_formatted
+from academic_agent.citation_formats import (
+    citation_format_instruction,
+    render_references_formatted,
+    strip_embedded_reference_sections,
+)
 from academic_agent.knowledge_base import retrieve_snippets
 from academic_agent.llm import OpenAICompatibleClient, compact_sources
 from academic_agent.models import Paper, PaperPlan, SectionPlan, SourceName
 from academic_agent.scholar_query import english_scholar_queries
 from academic_agent.search import AcademicSearcher, dedupe_papers
-from academic_agent.word_count import count_words, estimate_max_tokens, within_tolerance
+from academic_agent.word_count import count_body_words, count_words, estimate_max_tokens, within_tolerance
 
 
-ProgressCallback = Callable[[str, int, str], None]
+ProgressCallback = Callable[..., None]
 PreviewCallback = Callable[[str], None]
 
 LANGUAGE_INSTRUCTIONS: dict[str, str] = {
@@ -41,11 +47,71 @@ Rules:
 5) Prefer peer-reviewed, higher-citation sources for core claims; use others for context.
 6) Write in the requested output language; source metadata stays in English.
 7) End with a properly formatted reference list matching every in-text citation (alphabetical or numeric per style).
-8) Do not use bullet lists in body text unless the section purpose requires it; write in full paragraphs."""
+8) NEVER include a References / Works Cited / Bibliography section — it is added automatically.
+9) NEVER put http(s) URLs or markdown links in in-text citations or body paragraphs.
+10) Do not use bullet lists in body text unless the section purpose requires it; write in full paragraphs."""
 
 DE_AI_SYSTEM = """Revise text to read naturally human-authored academic prose.
 Remove AI clichés (综上所述/值得注意的是/in conclusion it is important).
 Keep all citations, headings, and facts unchanged. Return full Markdown."""
+
+_SECTION_HEADING_LINE = re.compile(r"^#{1,3}\s+(.+?)\s*$")
+
+
+def _heading_key(text: str) -> str:
+    return re.sub(r"\s+", " ", text.strip().lower())
+
+
+def _strip_leading_duplicate_headings(content: str, heading: str) -> str:
+    """Remove LLM-written ##/### lines that repeat the planned section title."""
+    text = content.strip()
+    if not text:
+        return ""
+    key = _heading_key(heading)
+    while text:
+        lines = text.splitlines()
+        first = lines[0].strip()
+        if not first:
+            text = "\n".join(lines[1:]).lstrip("\n")
+            continue
+        match = _SECTION_HEADING_LINE.match(first)
+        if match:
+            title_key = _heading_key(match.group(1))
+        else:
+            title_key = _heading_key(first)
+        if title_key == key or (
+            len(key) > 6 and (title_key in key or key in title_key)
+        ):
+            text = "\n".join(lines[1:]).lstrip("\n")
+            continue
+        break
+    return text.strip()
+
+
+def _dedupe_consecutive_headings(text: str) -> str:
+    """Drop back-to-back identical markdown headings inside section body."""
+    lines = text.splitlines()
+    out: list[str] = []
+    prev_key: str | None = None
+    for line in lines:
+        stripped = line.strip()
+        match = _SECTION_HEADING_LINE.match(stripped)
+        if match:
+            key = _heading_key(match.group(1))
+            if key == prev_key:
+                continue
+            prev_key = key
+        else:
+            prev_key = None
+        out.append(line)
+    return "\n".join(out).strip()
+
+
+def format_section_markdown(content: str, heading: str) -> str:
+    body = _dedupe_consecutive_headings(_strip_leading_duplicate_headings(content, heading))
+    if body:
+        return f"## {heading}\n\n{body}"
+    return f"## {heading}"
 
 
 class LongFormWriter:
@@ -54,7 +120,7 @@ class LongFormWriter:
         *,
         llm: OpenAICompatibleClient | None = None,
         searcher: AcademicSearcher | None = None,
-        max_parallel_sections: int = 3,
+        max_parallel_sections: int = 4,
     ) -> None:
         self.llm = llm or OpenAICompatibleClient()
         self.searcher = searcher or AcademicSearcher()
@@ -70,6 +136,7 @@ class LongFormWriter:
         language: str = "zh",
         citation_format: str = "apa7",
         requirements: str = "",
+        library_context: str = "",
         fast_mode: bool = False,
         web_search: bool = True,
         tavily_key: str = "",
@@ -85,15 +152,21 @@ class LongFormWriter:
         lang = language if language in LANGUAGE_INSTRUCTIONS else "zh"
         cite_fmt = citation_format if citation_format in ("bracket", "apa7", "mla9", "chicago", "ieee", "gbt7714") else "apa7"
         req = requirements.strip()
+        lib_ctx = library_context.strip()
+        if lib_ctx:
+            req = (req + "\n\nUser-provided reference materials (cite as user sources when relevant):\n" + lib_ctx).strip()
 
-        def report(step: str, percent: int, message: str) -> None:
+        def report(step: str, percent: int, message: str, **meta: object) -> None:
             if on_progress:
-                on_progress(step, percent, message)
+                on_progress(step, percent, message, **meta)
 
-        kb_hint = retrieve_snippets(topic) if deep_quality else retrieve_snippets(topic, limit=2)
+        kb_hint = "" if fast_mode else (retrieve_snippets(topic) if deep_quality else retrieve_snippets(topic, limit=2))
 
         report("search", 6, "检索 Google Scholar 级英文文献…")
-        scholar_queries = english_scholar_queries(topic, llm=self.llm) if citation_limit > 0 or search_limit > 0 else []
+        if fast_mode:
+            scholar_queries = [topic] if (citation_limit > 0 or search_limit > 0) else []
+        else:
+            scholar_queries = english_scholar_queries(topic, llm=self.llm) if citation_limit > 0 or search_limit > 0 else []
         if search_limit > 0:
             papers = self.searcher.search(
                 topic,
@@ -107,7 +180,7 @@ class LongFormWriter:
         else:
             papers = []
         ref_papers = papers[:citation_limit] if citation_limit > 0 else []
-        if citation_limit > 0 and len(ref_papers) < min(5, citation_limit):
+        if not fast_mode and citation_limit > 0 and len(ref_papers) < min(5, citation_limit):
             report("search", 10, f"英文文献较少（{len(ref_papers)} 篇），正在扩大检索…")
             backup = self.searcher.search(
                 scholar_queries[0] if scholar_queries else topic,
@@ -125,21 +198,41 @@ class LongFormWriter:
             target_words=target_words,
             papers=ref_papers or papers,
             language=lang,
+            citation_format=cite_fmt,
             requirements=req,
             fast_mode=fast_mode,
             kb_hint=kb_hint,
         )
 
+        sections_plan = [{"heading": sec.heading, "status": "pending"} for sec in plan.sections]
+        outline = " · ".join(sec.heading for sec in plan.sections[:6])
+        if len(plan.sections) > 6:
+            outline += f" …共 {len(plan.sections)} 节"
+        report(
+            "plan",
+            22,
+            f"结构已定 · {outline}",
+            sections_plan=sections_plan,
+            section_current="",
+        )
+
         if on_preview:
             on_preview(f"# {plan.title}\n\n*正在撰写…*\n")
 
-        report("write", 28, f"并行撰写 {len(plan.sections)} 个章节…")
+        report(
+            "write",
+            28,
+            f"开始撰写 · 共 {len(plan.sections)} 节",
+            sections_plan=sections_plan,
+            section_current=plan.sections[0].heading if plan.sections else "",
+        )
         sections = self._write_sections_parallel(
             plan,
             ref_papers or papers,
             language=lang,
             citation_format=cite_fmt,
             kb_hint=kb_hint,
+            fast_mode=fast_mode,
             on_progress=report,
             on_preview=on_preview,
         )
@@ -148,12 +241,17 @@ class LongFormWriter:
         body_words = count_words(body_text)
         report("adjust", 82, f"字数校准：当前 {body_words} / 目标 {target_words}")
 
-        if target_words > 800:
+        if fast_mode:
+            report("adjust", 86, f"快速模式 · 保留 {body_words} 词（目标 {target_words}）")
+        elif target_words > 800:
             sections, body_text = self._enforce_word_count(
                 plan, sections, target_words, papers, lang, cite_fmt, report
             )
         elif not within_tolerance(body_words, target_words):
             report("adjust", 86, f"短篇跳过精调，保留 {body_words} 词")
+
+        sections = [strip_embedded_reference_sections(s) for s in sections]
+        body_text = "\n\n".join(sections)
 
         report("references", 92, "整理参考文献…")
         references = render_references_formatted(ref_papers, cite_fmt)
@@ -161,7 +259,10 @@ class LongFormWriter:
         checks = ""
         if deep_quality and not fast_mode:
             report("check", 96, "深度质量检查…")
-            checks = self.final_check(plan, body_text, ref_papers or papers, language=lang)
+            try:
+                checks = self.final_check(plan, body_text, ref_papers or papers, language=lang)
+            except RuntimeError:
+                checks = ""
 
         document = render_document(plan, sections, references, checks, target_words=target_words)
 
@@ -173,8 +274,8 @@ class LongFormWriter:
         if output_path:
             output_path.write_text(document, encoding="utf-8")
 
-        final_words = count_words("\n\n".join(sections))
-        report("done", 100, f"生成完成 · {final_words} 词（目标 {target_words}）")
+        final_words = count_body_words("\n\n".join(sections))
+        report("done", 100, f"生成完成 · 正文 {final_words} 词（目标 {target_words}，参考文献不计入）")
         return document
 
     def plan(
@@ -184,11 +285,12 @@ class LongFormWriter:
         target_words: int,
         papers: list[Paper],
         language: str = "zh",
+        citation_format: str = "apa7",
         requirements: str = "",
         fast_mode: bool = False,
         kb_hint: str = "",
     ) -> PaperPlan:
-        source_context = compact_sources(papers, limit=12)
+        source_context = compact_sources(papers, limit=12, citation_format=citation_format)
         lang_note = LANGUAGE_INSTRUCTIONS.get(language, LANGUAGE_INSTRUCTIONS["zh"])
         if target_words < 1200:
             section_hint = "2-3"
@@ -228,13 +330,45 @@ class LongFormWriter:
         language: str,
         citation_format: str,
         kb_hint: str = "",
+        fast_mode: bool = False,
         on_progress: ProgressCallback | None = None,
         on_preview: PreviewCallback | None = None,
     ) -> list[str]:
         total = len(plan.sections)
         results: dict[int, str] = {}
+        statuses = ["pending"] * total
+        lock = threading.Lock()
+
+        def plan_snapshot() -> list[dict[str, str]]:
+            return [
+                {"heading": plan.sections[i].heading, "status": statuses[i]}
+                for i in range(total)
+            ]
+
+        def emit_write_progress(*, done: int, current: str) -> None:
+            if not on_progress:
+                return
+            pct = 28 + int(52 * done / total) if total else 28
+            writing = [plan.sections[i].heading for i, s in enumerate(statuses) if s == "writing"]
+            label = current or (writing[0] if writing else "")
+            if writing and len(writing) > 1:
+                msg = f"撰写中 · {' / '.join(writing[:3])}（{len(writing)} 路并行）"
+            elif label:
+                msg = f"撰写中 · {label}（{done}/{total}）"
+            else:
+                msg = f"撰写中（{done}/{total}）"
+            on_progress(
+                "write",
+                pct,
+                msg,
+                section_current=label,
+                sections_plan=plan_snapshot(),
+            )
 
         def task(index: int, section: SectionPlan) -> tuple[int, str]:
+            with lock:
+                statuses[index] = "writing"
+                emit_write_progress(done=sum(1 for s in statuses if s == "done"), current=section.heading)
             relevant = self._select_relevant_sources(section, papers)
             text = self.write_section(
                 plan,
@@ -243,6 +377,7 @@ class LongFormWriter:
                 language=language,
                 citation_format=citation_format,
                 kb_hint=kb_hint,
+                fast_mode=fast_mode,
                 used_keys=set(),
             )
             return index, text
@@ -255,10 +390,22 @@ class LongFormWriter:
             for fut in as_completed(futures):
                 idx, text = fut.result()
                 results[idx] = text
-                done += 1
-                if on_progress:
-                    pct = 28 + int(52 * done / total)
-                    on_progress("write", pct, f"章节完成 {done}/{total}")
+                with lock:
+                    statuses[idx] = "done"
+                    done += 1
+                    next_writing = next(
+                        (plan.sections[i].heading for i, s in enumerate(statuses) if s == "writing"),
+                        "",
+                    )
+                    emit_write_progress(done=done, current=next_writing)
+                    if on_progress and done == total:
+                        on_progress(
+                            "write",
+                            80,
+                            f"全部章节完成 · {total}/{total}",
+                            section_current="",
+                            sections_plan=plan_snapshot(),
+                        )
                 if on_preview:
                     ordered = [results[i] for i in sorted(results.keys())]
                     on_preview(f"# {plan.title}\n\n**Thesis:** {plan.thesis}\n\n" + "\n\n".join(ordered))
@@ -274,9 +421,11 @@ class LongFormWriter:
         language: str = "zh",
         citation_format: str = "apa7",
         kb_hint: str = "",
+        fast_mode: bool = False,
         used_keys: set[str] | None = None,
     ) -> str:
-        source_context = compact_sources(papers, limit=8)
+        source_limit = 5 if fast_mode else 8
+        source_context = compact_sources(papers, limit=source_limit, citation_format=citation_format)
         lang_note = LANGUAGE_INSTRUCTIONS.get(language, LANGUAGE_INSTRUCTIONS["zh"])
         cite_note = citation_format_instruction(citation_format)
         avoid = ", ".join(sorted(used_keys or [])) or "none"
@@ -295,14 +444,17 @@ class LongFormWriter:
                         f"Already used source keys (avoid reusing in same paragraph): {avoid}\n"
                         f"Style hints:\n{kb_hint}\n"
                         f"Numbered sources (cite by [n]):\n{source_context}\n\n"
-                        "Write ## heading then body. Each paragraph needs in-text citations."
+                        "Write body paragraphs only — do NOT include the section heading (##); "
+                        "it is added automatically. Use ### only for true subsections inside this section. "
+                        "Each paragraph needs in-text citations. "
+                        "Do NOT add a References/Works Cited section."
                     ),
                 },
             ],
             temperature=0.3,
             max_tokens=estimate_max_tokens(section.target_words),
         )
-        return f"## {section.heading}\n\n{content.strip()}"
+        return format_section_markdown(content, section.heading)
 
     def _enforce_word_count(
         self,
@@ -368,7 +520,7 @@ class LongFormWriter:
             max_tokens=estimate_max_tokens(gap + count_words(sections[idx])),
         )
         out = list(sections)
-        out[idx] = expanded.strip() if expanded.strip().startswith("##") else f"## {heading}\n\n{expanded.strip()}"
+        out[idx] = format_section_markdown(expanded, heading)
         return out
 
     def _trim_sections(self, sections: list[str], target_words: int, language: str) -> list[str]:
@@ -493,7 +645,7 @@ def render_document(
     target_words: int,
 ) -> str:
     body_words = count_words("\n\n".join(sections))
-    meta = f"**Words:** {body_words} (target {target_words}) · **Thesis:** {plan.thesis}"
+    meta = f"**Words:** {body_words}（正文，不含参考文献；目标 {target_words}） · **Thesis:** {plan.thesis}"
     ref_block = references if references.strip().startswith("##") else f"## References\n\n{references}"
     doc = f"# {plan.title}\n\n{meta}\n\n{chr(10).join(sections)}\n\n{ref_block}\n"
     if checks.strip():

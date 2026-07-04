@@ -1,0 +1,16 @@
+version: "3.8"
+
+services:
+  joeku:
+    build: .
+    ports:
+      - "8000:8000"
+    environment:
+      - PORT=8000
+    # For persistent data across restarts (maps a host folder to container)
+    # Users can still choose different data roots inside the app.
+    volumes:
+      - ./data:/app/data
+    restart: unless-stopped
+    # Example command override if needed:
+    # command: python -m academic_agent.cli web --host 0.0.0.0 --port 8000

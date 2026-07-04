@@ -1,5 +1,7 @@
 from __future__ import annotations
 
+import base64
+
 from academic_agent.config import Settings, get_settings
 from academic_agent.llm import OpenAICompatibleClient
 from starlette.requests import Request
@@ -22,16 +24,25 @@ def normalize_base_url(url: str) -> str:
     return f"{cleaned}/v1"
 
 
+def decode_header_value(value: str) -> str:
+    raw = (value or "").strip()
+    if raw.startswith("b64:"):
+        return base64.b64decode(raw[4:]).decode("utf-8")
+    return raw
+
+
 def tavily_key_from_request(request: Request) -> str:
-    return (request.headers.get("x-tavily-key") or "").strip()
+    return decode_header_value(request.headers.get("x-tavily-key") or "")
 
 
 def settings_from_request(request: Request) -> Settings:
     """Use per-request LLM headers only — never fall back to server .env API key."""
     base = get_settings()
-    api_key = (request.headers.get("x-api-key") or "").strip()
-    base_url = normalize_base_url((request.headers.get("x-base-url") or "").strip() or base.openai_base_url)
-    model = (request.headers.get("x-model") or "").strip() or base.openai_model
+    api_key = decode_header_value(request.headers.get("x-api-key") or "")
+    base_url = normalize_base_url(
+        decode_header_value(request.headers.get("x-base-url") or "") or base.openai_base_url
+    )
+    model = decode_header_value(request.headers.get("x-model") or "") or base.openai_model
     return base.model_copy(
         update={
             "openai_api_key": api_key,
