@@ -1,33 +1,211 @@
-# Secrets
-.env
+# =============================================================================
+# Joeku - Comprehensive .gitignore
+# =============================================================================
+# This file ensures a clean repository so that after `git clone`,
+# users can run `uv sync` or `pip install -e .` and start using Joeku immediately.
+#
+# What should be committed:
+#   - pyproject.toml + uv.lock
+#   - src/
+#   - tests/
+#   - scripts/ (launchers)
+#   - .env.example
+#   - Dockerfile, docker-compose.yml, render.yaml
+#   - README.md, Joeku.bat, etc.
+#
+# What must NEVER be committed:
+#   - Personal user data (users/)
+#   - Secrets (.env)
+#   - Virtual environments
+#   - Build artifacts and caches
+# =============================================================================
 
-# Python
+# -----------------------------------------------------------------------------
+# Secrets & Environment Files
+# -----------------------------------------------------------------------------
+.env
+.env.*
+!.env.example
+*.pem
+*.key
+*.crt
+secrets/
+credentials/
+
+# -----------------------------------------------------------------------------
+# Python Virtual Environments
+# -----------------------------------------------------------------------------
 .venv/
+venv/
+env/
+ENV/
+env.bak/
+venv.bak/
+
+# -----------------------------------------------------------------------------
+# Python Bytecode & Packaging
+# -----------------------------------------------------------------------------
 __pycache__/
 *.py[cod]
-*.egg-info/
-dist/
+*$py.class
+*.so
+
+# Distribution / packaging
+.Python
 build/
+develop-eggs/
+dist/
+downloads/
+eggs/
+.eggs/
+lib/
+lib64/
+parts/
+sdist/
+var/
+wheels/
+*.egg-info/
+.installed.cfg
+*.egg
+MANIFEST
+
+# PyInstaller
+*.manifest
+*.spec
+
+# Installer logs
+pip-log.txt
+pip-delete-this-directory.txt
+
+# -----------------------------------------------------------------------------
+# Testing & Coverage (caches and reports only — keep tests/ directory!)
+# -----------------------------------------------------------------------------
 .pytest_cache/
+.coverage
+.coverage.*
+.cache
+nosetests.xml
+coverage.xml
+*.cover
+*.py,cover
+.hypothesis/
+htmlcov/
+.tox/
+.nox/
+
+# -----------------------------------------------------------------------------
+# Type Checking & Linting Caches
+# -----------------------------------------------------------------------------
 .mypy_cache/
+.pytype/
+.dmypy.json
+dmypy.json
 .ruff_cache/
+.mypy/
 
-# IDE / local
-.idea/
-.vscode/
-terminals/
-mcps/
-
-# OS
-Thumbs.db
-Desktop.ini
-.DS_Store
-
-# Local artifacts
-_app_recovered.js
-scripts/test_article_output.md
-
-# Joeku runtime user data (picked local folders + default users/ when using repo root)
+# -----------------------------------------------------------------------------
+# Joeku Project-Specific Data (personal / runtime)
+# -----------------------------------------------------------------------------
+# User data, profiles, projects, and libraries — contains personal information
 users/
+
+# Local runtime state and configuration
 joeku.json
 *.local.json
+
+# Default data directory (when user selects the project root)
+data/
+
+# -----------------------------------------------------------------------------
+# Temporary, Debug & Batch Artifacts
+# -----------------------------------------------------------------------------
+# These are created during development, batch operations, or AI-assisted pushes
+_batch*.json
+_batch*.out.json
+_push*.json
+_push_*.json
+_emit_batch.py
+_inspect_batches.py
+_push_files_args.json
+_push_payload.json
+_app_recovered*.js
+
+# Temporary tool/agent outputs
+agent-tools/
+
+# -----------------------------------------------------------------------------
+# IDE / Editor
+# -----------------------------------------------------------------------------
+.idea/
+.vscode/
+*.swp
+*.swo
+*~
+.project
+.pydevproject
+.settings/
+*.sublime-project
+*.sublime-workspace
+
+# -----------------------------------------------------------------------------
+# Operating System Files
+# -----------------------------------------------------------------------------
+# macOS
+.DS_Store
+.AppleDouble
+.LSOverride
+._*
+
+# Windows
+Thumbs.db
+Thumbs.db:encryptable
+ehthumbs.db
+ehthumbs_vista.db
+[Dd]esktop.ini
+$RECYCLE.BIN/
+*.cab
+*.msi
+*.msix
+*.msm
+*.msp
+*.lnk
+
+# Linux
+*~
+
+# -----------------------------------------------------------------------------
+# Logs & Runtime Output
+# -----------------------------------------------------------------------------
+*.log
+logs/
+*.out
+*.err
+terminals/
+
+# -----------------------------------------------------------------------------
+# Other Common Temporary Files
+# -----------------------------------------------------------------------------
+*.tmp
+*.temp
+*.bak
+temp/
+tmp/
+cache/
+*.cache/
+
+# Archives created locally
+*.tgz
+*.tar.gz
+*.zip
+*.rar
+
+# -----------------------------------------------------------------------------
+# MCP / External Tooling (local only)
+# -----------------------------------------------------------------------------
+mcps/
+
+# -----------------------------------------------------------------------------
+# Note on uv.lock:
+# uv.lock should be committed so users can run `uv sync` and get the exact
+# same environment. Do NOT add it to this file.
+# -----------------------------------------------------------------------------
